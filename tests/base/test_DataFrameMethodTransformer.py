@@ -21,9 +21,10 @@ class TestInit(object):
                 "new_column_name",
                 "pd_method_name",
                 "columns",
+                "drop_original",
                 "pd_method_kwargs",
             ],
-            expected_default_values=({},),
+            expected_default_values=(False,{},),
         )
 
     def test_class_methods(self):
@@ -76,6 +77,15 @@ class TestInit(object):
 
             DataFrameMethodTransformer(
                 new_column_name="a", pd_method_name=1, columns=["b", "c"]
+            )
+        
+        with pytest.raises(
+            TypeError,
+            match=r"unexpected type \(\<class 'int'\>\) for drop_original, expecting bool",
+        ):
+
+            DataFrameMethodTransformer(
+                new_column_name="a", pd_method_name="sum", columns=["b", "c"], drop_original=30
             )
 
         with pytest.raises(
@@ -136,12 +146,12 @@ class TestInit(object):
         """Test that the values passed for new_column_name, pd_method_name are saved to attributes on the object."""
 
         x = DataFrameMethodTransformer(
-            new_column_name="a", pd_method_name="sum", columns=["b", "c"]
+            new_column_name="a", pd_method_name="sum", columns=["b", "c"], drop_original=True
         )
 
         h.test_object_attributes(
             obj=x,
-            expected_attributes={"new_column_name": "a", "pd_method_name": "sum"},
+            expected_attributes={"new_column_name": "a", "pd_method_name": "sum", "drop_original": True},
             msg="Attributes for DataFrameMethodTransformer set in init",
         )
 
@@ -292,4 +302,46 @@ class TestTransform(object):
             actual=call_pos_args,
             expected=(df[columns],),
             msg_tag=f"""Positional arg assert for {pd_method_name}""",
+        )
+
+    def test_original_columns_dropped_when_specified(self):
+        """Test DataFrameMethodTransformer.transform drops original columns get when specified."""
+
+        df = d.create_df_3()
+
+        x = DataFrameMethodTransformer(
+            new_column_name="a_b_sum",
+            pd_method_name="sum",
+            columns=["a", "b"],
+            drop_original=True
+            )
+
+        df_transformed = x.transform(df)
+
+        h.assert_equal_dispatch(
+            expected=["a", "b"],
+            actual=[
+                x for x in df.columns.values if x not in df_transformed.columns.values
+            ],
+            msg="original columns not dropped",
+        )
+    
+    def test_original_columns_kept_when_specified(self):
+        """Test DataFrameMethodTransformer.transform keeps original columns when specified."""
+
+        df = d.create_df_3()
+
+        x = DataFrameMethodTransformer(
+            new_column_name="a_b_sum",
+            pd_method_name="sum",
+            columns=["a", "b"],
+            drop_original=False
+            )
+
+        df_transformed = x.transform(df)
+
+        h.assert_equal_dispatch(
+            expected=list(set()),
+            actual=list(set(["a", "b"]) - set(df_transformed.columns)),
+            msg="original columns not kept",
         )

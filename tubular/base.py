@@ -309,6 +309,9 @@ class DataFrameMethodTransformer(BaseTransformer):
         the user has to specify the columns when initialising the transformer. This is avoid likely
         when the user forget to set columns, in this case all columns would be picked up when super
         transform runs.
+    
+    drop_original : bool, default = False
+        Should original columns be dropped?
 
     pd_method_kwargs : dict, default = {}
         A dictionary of keyword arguments to be passed to the pd.DataFrame method when it is called.
@@ -322,13 +325,16 @@ class DataFrameMethodTransformer(BaseTransformer):
         The name of the column or columns to be assigned to the output of running the
         pandas method in transform.
 
+    drop_original : bool
+        Should original columns be dropped?
+
     pd_method_name : str
         The name of the pandas.DataFrame method to call.
 
     """
 
     def __init__(
-        self, new_column_name, pd_method_name, columns, pd_method_kwargs={}, **kwargs
+        self, new_column_name, pd_method_name, columns, drop_original=False, pd_method_kwargs={}, **kwargs
     ):
 
         super().__init__(columns=columns, **kwargs)
@@ -371,9 +377,16 @@ class DataFrameMethodTransformer(BaseTransformer):
                         f"unexpected type ({type(k)}) for pd_method_kwargs key in position {i}, must be str"
                     )
 
+        if not type(drop_original) is bool:
+
+            raise TypeError(
+                f"unexpected type ({type(drop_original)}) for drop_original, expecting bool"
+            )
+
         self.new_column_name = new_column_name
         self.pd_method_name = pd_method_name
         self.pd_method_kwargs = pd_method_kwargs
+        self.drop_original = drop_original
 
         try:
 
@@ -405,10 +418,17 @@ class DataFrameMethodTransformer(BaseTransformer):
 
         """
 
+        self.check_is_fitted(["drop_original"])
+
         X = super().transform(X)
 
         X[self.new_column_name] = getattr(X[self.columns], self.pd_method_name)(
             **self.pd_method_kwargs
         )
+
+        # Drop original columns
+        if self.drop_original:
+
+            X.drop(self.columns, axis=1, inplace=True)
 
         return X
